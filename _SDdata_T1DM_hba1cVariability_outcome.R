@@ -1,0 +1,359 @@
+library(data.table)
+library(ggplot2)
+library(randomForest)
+library(survival)
+
+
+## functions
+
+returnUnixDateTime<-function(date) {
+  returnVal<-as.numeric(as.POSIXct(date, format="%Y-%m-%d", tz="GMT"))
+  return(returnVal)
+}
+
+## return flag for values that are within either endDate-predictionDurationYears or deathDate-predictionDurationYears
+flagValuesWithinRange<-function(LinkId,dateplustime1,predictionDurationYears,runInMonths,endDateUnix,deathDateUnix) {
+  
+  # print(LinkId)
+  
+  runIn<-runInMonths*(60*60*24*(365.25/12))
+  predictionDuration<-predictionDurationYears*(60*60*24*365.25)
+  testDF<-data.frame(dateplustime1)
+  isDead<-ifelse(sum(deathDateUnix)>0,1,0)
+  
+  testTimePoint<-ifelse(isDead==1,max(deathDateUnix)-predictionDuration,endDateUnix-predictionDuration)
+  startRunIn<-testTimePoint-runIn
+  
+  testDF$flagForUse<-ifelse(testDF$dateplustime1>startRunIn & testDF$dateplustime1<testTimePoint,1,0)
+  
+  return(testDF$flagForUse)
+}
+
+
+## return flag for values that are within either endDate-predictionDurationYears or deathDate-predictionDurationYears
+flagValuesWithinRangeForSpecifiedTimePoint<-function(LinkId,dateplustime1,runInMonths,sampleDateUnix) {
+  
+  # print(LinkId)
+  
+  runIn<-runInMonths*(60*60*24*(365.25/12))
+  testDF<-data.frame(dateplustime1)
+  # isDead<-ifelse(sum(deathDateUnix)>0,1,0)
+  
+  testTimePoint<-sampleDateUnix
+  startRunIn<-testTimePoint-runIn
+  
+  testDF$flagForUse<-ifelse(testDF$dateplustime1>startRunIn & testDF$dateplustime1<testTimePoint,1,0)
+  
+  return(testDF$flagForUse)
+}
+
+simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
+  
+  SurvivalData<-inputFrame
+  
+  DaySeconds<-(60*60*24)
+  shortCensorPeriodStartDay  <- DaySeconds
+  shortCensorPeriodEndDay    <- DaySeconds*10000
+  
+  lastDOD<-endDateUnix
+  SurvivalData$dateOfDischarge<-sampleDateUnix
+  SurvivalData$timeToDeath<-ifelse(SurvivalData$isDead==1,(SurvivalData$DeathDateUnix-SurvivalData$dateOfDischarge),0)
+  #		SurvivalData$timeToDeath<-SurvivalData$timeToDeath/DaySeconds
+  SurvivalData$timeToDeathInterval<-ifelse(SurvivalData$isDead==0,(lastDOD-SurvivalData$dateOfDischarge),SurvivalData$timeToDeath)
+  SurvivalData$timeToDeathInterval[is.na(SurvivalData$timeToDeathInterval)]<-0; SurvivalData<-subset(SurvivalData,timeToDeathInterval>0)
+  # SurvivalData$timeToDeathInterval<-SurvivalData$timeToDeathInterval/(60*60*24*365.25)
+  
+  SurvivalData$shortDeathEvent <- SurvivalData$isDead
+  # SurvivalData$shortDeathEvent <- ifelse(SurvivalData$isDead==1 & SurvivalData$timeToDeath>=(shortCensorPeriodStartDay) & SurvivalData$timeToDeath<(shortCensorPeriodEndDay),1,0)	
+  
+  #  SurvivalData$sexDigit<-ifelse(nchar(SurvivalData$charID==9),as.numeric(substr(SurvivalData$charID,8,8)),as.numeric(substr(SurvivalData$charID,9,9)))
+  # SurvivalData$sexNumber<-ifelse(SurvivalData$sexDigit%%2==0,1,0)
+  #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
+  
+  
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
+  legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
+  summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("bottomright",legendText,cex=0.6)
+  
+  print(mfitAge50.coxph)
+  
+}
+
+
+simpleSurvivalPlotMultiTest<-function(inputFrame,endDateUnix,sampleDateUnix,testMetric,ylimMin) {
+  
+  SurvivalData<-data.frame(inputFrame,testMetric)
+  
+  DaySeconds<-(60*60*24)
+  shortCensorPeriodStartDay  <- DaySeconds
+  shortCensorPeriodEndDay    <- DaySeconds*10000
+  
+  lastDOD<-endDateUnix
+  SurvivalData$dateOfDischarge<-sampleDateUnix
+  SurvivalData$timeToDeath<-ifelse(SurvivalData$isDead==1,(SurvivalData$DeathDateUnix-SurvivalData$dateOfDischarge),0)
+  #		SurvivalData$timeToDeath<-SurvivalData$timeToDeath/DaySeconds
+  SurvivalData$timeToDeathInterval<-ifelse(SurvivalData$isDead==0,(lastDOD-SurvivalData$dateOfDischarge),SurvivalData$timeToDeath)
+  SurvivalData$timeToDeathInterval[is.na(SurvivalData$timeToDeathInterval)]<-0; SurvivalData<-subset(SurvivalData,timeToDeathInterval>0)
+  # SurvivalData$timeToDeathInterval<-SurvivalData$timeToDeathInterval/(60*60*24*365.25)
+  
+  SurvivalData$shortDeathEvent <- SurvivalData$isDead
+  # SurvivalData$shortDeathEvent <- ifelse(SurvivalData$isDead==1 & SurvivalData$timeToDeath>=(shortCensorPeriodStartDay) & SurvivalData$timeToDeath<(shortCensorPeriodEndDay),1,0)	
+  
+  #  SurvivalData$sexDigit<-ifelse(nchar(SurvivalData$charID==9),as.numeric(substr(SurvivalData$charID,8,8)),as.numeric(substr(SurvivalData$charID,9,9)))
+  # SurvivalData$sexNumber<-ifelse(SurvivalData$sexDigit%%2==0,1,0)
+  #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
+  
+  
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
+  legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
+  summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("bottomright",legendText,cex=0.6)
+  
+  print(mfitAge50.coxph)
+  
+}
+
+
+simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
+  
+  SurvivalData<-data.frame(inputFrame,testMetric,outcomeData)
+  
+  SurvivalData$reachesOutcome<-ifelse(SurvivalData$outcomeData>0,1,0)
+  
+  DaySeconds<-(60*60*24)
+  shortCensorPeriodStartDay  <- DaySeconds
+  shortCensorPeriodEndDay    <- DaySeconds*10000
+  
+  lastDOD<-endDateUnix
+  SurvivalData$dateOfDischarge<-sampleDateUnix
+  SurvivalData$timeToDeath<-ifelse(SurvivalData$reachesOutcome==1,(SurvivalData$outcomeData-SurvivalData$dateOfDischarge),0)
+  #		SurvivalData$timeToDeath<-SurvivalData$timeToDeath/DaySeconds
+  SurvivalData$timeToDeathInterval<-ifelse(SurvivalData$reachesOutcome==0,(lastDOD-SurvivalData$dateOfDischarge),SurvivalData$timeToDeath)
+  SurvivalData$timeToDeathInterval[is.na(SurvivalData$timeToDeathInterval)]<-0; SurvivalData<-subset(SurvivalData,timeToDeathInterval>0)
+  # SurvivalData$timeToDeathInterval<-SurvivalData$timeToDeathInterval/(60*60*24*365.25)
+  
+  SurvivalData$shortDeathEvent <- SurvivalData$reachesOutcome
+  # SurvivalData$shortDeathEvent <- ifelse(SurvivalData$isDead==1 & SurvivalData$timeToDeath>=(shortCensorPeriodStartDay) & SurvivalData$timeToDeath<(shortCensorPeriodEndDay),1,0)	
+  
+  #  SurvivalData$sexDigit<-ifelse(nchar(SurvivalData$charID==9),as.numeric(substr(SurvivalData$charID,8,8)),as.numeric(substr(SurvivalData$charID,9,9)))
+  # SurvivalData$sexNumber<-ifelse(SurvivalData$sexDigit%%2==0,1,0)
+  #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
+  
+  boxplot(SurvivalData$timeToDeathInterval ~ cut(SurvivalData$hba1cIQRinRange,breaks=seq(0,80,2)),varwidth=T)
+  
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
+  legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
+  summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("bottomright",legendText,cex=0.6)
+  
+  print(mfitAge50.coxph)
+  
+}
+
+
+
+########################################################################################
+## load in datasets
+
+diagnosisSetDF<-read.csv("../GlCoSy/SD_workingSource/diagnosisSetDT.csv")
+diagnosisSetDF<-subset(diagnosisSetDF,diagnosisDateUnix>returnUnixDateTime("1900-01-01"))
+diagnosisSetDF<-subset(diagnosisSetDF,birthDateUnix>returnUnixDateTime("1900-01-01"))
+limitedDeathSetDF<-data.frame(diagnosisSetDF$LinkId,diagnosisSetDF$DeathDateUnix); colnames(limitedDeathSetDF)<-c("LinkId","DeathDateUnix")
+
+hba1cDF<-read.csv("../GlCoSy/SD_workingSource/hba1cDTclean2.csv")
+hba1cDF<-merge(hba1cDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+SBPsetDF<-read.csv("../GlCoSy/SD_workingSource/SBPsetDTclean.csv")
+SBPsetDF<-merge(SBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+DBPsetDF<-read.csv("../GlCoSy/SD_workingSource/DBPsetDTclean.csv")
+DBPsetDF<-merge(DBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+# albuminSetACRDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
+# albuminSetACRDF<-merge(albuminSetACRDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+eyeSetDF<-read.csv("../GlCoSy/SD_workingSource/eyeSetDT.csv")
+eyeSetDF<-merge(eyeSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+bmiSetDF<-read.csv("../GlCoSy/SD_workingSource/BMISetDTclean.csv")
+bmiSetDF<-merge(bmiSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+renalSetDF<-read.csv("../GlCoSy/SD_workingSource/renalSetDTclean.csv")
+renalSetDF<-merge(renalSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+
+albuminSetDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
+albuminSetDF<-merge(albuminSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+albuminSetDF$logACRnumeric<-log(albuminSetDF$acrNumeric)
+
+#########################
+# predictionDurationYears<-outputTNframe$valueToInject[jj]
+## endDate - right censor point for survival
+endDate<-"2016-12-01"; endDateUnix<-returnUnixDateTime(endDate)
+##  sampleDate - arbitrary time point for sampling
+sampleDate<-"2012-01-01"; sampleDateUnix<-returnUnixDateTime(sampleDate)
+
+runInMonths<-48
+
+
+diagnosisSetDT<-data.table(diagnosisSetDF)
+diagnosisSetDT$isDead<-ifelse(diagnosisSetDT$DeathDateUnix>0,1,0)
+hba1cDT<-data.table(hba1cDF)
+SBPsetDT<-data.table(SBPsetDF)
+DBPsetDT<-data.table(DBPsetDF)
+eyeSetDT<-data.table(eyeSetDF)
+bmiSetDT<-data.table(bmiSetDF)
+renalSetDT<-data.table(renalSetDF)
+albuminSetDT<-data.table(albuminSetDF)
+
+########################################################################################
+## set up values to pass to RF for each paramter
+
+coreDataPrepDT<-data.table(diagnosisSetDT$birthDateUnix,diagnosisSetDT$LinkId,diagnosisSetDT$DeprivationQuintile,diagnosisSetDT$DiabetesMellitusType_Mapped,diagnosisSetDT$ageAtExtractOrDeath,diagnosisSetDT$diabetesDurationYears,diagnosisSetDT$isDead,diagnosisSetDT$diagnosisDateUnix,diagnosisSetDT$DeathDateUnix)
+colnames(coreDataPrepDT)<-c("birthDateUnix","LinkId","DeprivationQuintile","DiabetesMellitusType_Mapped","ageAtExtractOrDeath","diabetesDurationYears","isDead","diagnosisDateUnix","DeathDateUnix")
+coreDataPrepDT$diabetesDurationYears<-(sampleDateUnix-coreDataPrepDT$diagnosisDateUnix)/(60*60*24*365.25)
+# coreDataPrepDT$ageAtPredictionPoint<-coreDataPrepDT$ageAtExtractOrDeath-predictionDurationYears
+# coreDataPrepDT$timeAtPredictionPoint<-coreDataPrepDT$birthDateUnix+(coreDataPrepDT$ageAtPredictionPoint*(60*60*24*365.25))
+# coreDataPrepDT$timeAtExtractOrDeath<-coreDataPrepDT$birthDateUnix+(coreDataPrepDT$ageAtExtractOrDeath*(60*60*24*365.25))
+
+# coreDataPrepDT$ageAtExtractOrDeath<-NULL
+
+# hba1c
+hba1cDT[, c("flagValuesWithinRangeForSpecifiedTimePoint") := flagValuesWithinRangeForSpecifiedTimePoint(LinkId,dateplustime1,runInMonths,sampleDateUnix) , by=.(LinkId)]
+hba1cDT<-hba1cDT[flagValuesWithinRangeForSpecifiedTimePoint==1]
+hba1cDT[, nValsPerIDinRange := .N , by=.(LinkId)]
+hba1cDT[, valInSequencePerID := seq(1,.N,1) , by=.(LinkId)]
+hba1cDT[, hba1cIQRinRange := (quantile(newNumeric)[4]-quantile(newNumeric)[2]) , by=.(LinkId)]
+hba1cDT[, medianHbA1cInRange := (median(newNumeric)) , by=.(LinkId)]
+
+hba1cDTforMerge<-hba1cDT[valInSequencePerID==1]
+# hba1cDTforMerge<-hba1cDTforMerge[hba1cIQRinRange>0]
+hba1cMergeSubset<-data.table(hba1cDTforMerge$LinkId,hba1cDTforMerge$hba1cIQRinRange,hba1cDTforMerge$medianHbA1cInRange,hba1cDTforMerge$nValsPerIDinRange)
+colnames(hba1cMergeSubset)<-c("LinkId","hba1cIQRinRange","medianHbA1cInRange","nValsPerIDinRange")
+
+
+###############################################################################################
+masterAnalysisSet<-merge(coreDataPrepDT,hba1cMergeSubset,by.x="LinkId",by.y="LinkId",all.x=T); print(nrow(masterAnalysisSet))
+#
+# remove those who die during the run in - before the sampleDate
+hbA1cAnalysisSet<-masterAnalysisSet[DeathDateUnix>sampleDateUnix | DeathDateUnix==0]
+#
+## add age at sample time
+hbA1cAnalysisSet$age_atSampleTime<-(sampleDateUnix-hbA1cAnalysisSet$birthDateUnix)/(60*60*24*365.25)
+#
+## show distribution of number of hba1c measures during runin
+hist(hbA1cAnalysisSet$nValsPerIDinRange)
+hbA1cAnalysisSet<-hbA1cAnalysisSet[nValsPerIDinRange>1]
+#
+T1_hbA1cAnalysisSet<-hbA1cAnalysisSet[DiabetesMellitusType_Mapped=="Type 1 Diabetes Mellitus"]
+T2_hbA1cAnalysisSet<-hbA1cAnalysisSet[DiabetesMellitusType_Mapped=="Type 2 Diabetes Mellitus"]
+#
+simpleSurvivalPlot(T1_hbA1cAnalysisSet,endDateUnix,sampleDateUnix,0.9)
+simpleSurvivalPlot(T2_hbA1cAnalysisSet,endDateUnix,sampleDateUnix,0.8)
+#
+# survival in the subsets who have a duration of diabetes longer than the runin period
+simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)),endDateUnix,sampleDateUnix,0.9)
+simpleSurvivalPlot(subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)),endDateUnix,sampleDateUnix,0.8)
+
+simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12) & age_atSampleTime<25),endDateUnix,sampleDateUnix,0.9)
+
+#
+#
+#############################
+# admission data
+T1_admissions<-read.csv("../GlCoSy/source/admissionDataDT_T1DM.csv")
+T1_admissions_sub<-data.frame(T1_admissions$ID,T1_admissions$dateplustime1,T1_admissions$admissionNumberFlag,T1_admissions$nCBGperAdmission,T1_admissions$admissionDurationDays); colnames(T1_admissions_sub)<-c("ID","dateplustime1","admissionNumberFlag","nCBGperAdmission","admissionDurationDays")
+
+T2_admissions<-read.csv("../GlCoSy/source/admissionDataDT_T2DM.csv")
+T2_admissions_sub<-data.frame(T2_admissions$ID,T2_admissions$dateplustime1,T2_admissions$admissionNumberFlag,T2_admissions$nCBGperAdmission,T2_admissions$admissionDurationDays); colnames(T2_admissions_sub)<-c("ID","dateplustime1","admissionNumberFlag","nCBGperAdmission","admissionDurationDays")
+
+admissions<-rbind(T1_admissions_sub,T2_admissions_sub)
+admissionsDT<-data.table(admissions)
+
+## more than 2 CBGs to count as an admission
+# admissionsDT<-admissionsDT[nCBGperAdmission>2]
+admissionsDT<-admissionsDT[admissionDurationDays>0.5]
+
+## cut admissions to all those after the sampleDate
+admissionsDTafterSampleDate<-admissionsDT[dateplustime1>sampleDateUnix]
+admissionsDTafterSampleDate[, minAdmissionNumberFlag := (min(admissionNumberFlag)) , by=.(ID)]
+admissionsDTafterSampleDate$flagForFirstAdmissionPostSampleDate<-ifelse(admissionsDTafterSampleDate$admissionNumberFlag==admissionsDTafterSampleDate$minAdmissionNumberFlag,1,0)
+
+## load in all data to translate ID and LinkID
+demogALL<-read.csv("../GlCoSy/SDsource/diagnosisDateDeathDate.txt")
+admissionsDTafterSampleDateWithLinkID<-merge(admissionsDTafterSampleDate,demogALL,by.x="ID",by.y="PatId")
+# merge death and admission Data
+hba1c_admission_mortalitySet<-merge(hbA1cAnalysisSet,admissionsDTafterSampleDateWithLinkID,by.x="LinkId",by.y="LinkId",all.x=T)
+hba1c_admission_mortalitySet$dateplustime1[is.na(hba1c_admission_mortalitySet$dateplustime1)]<-0
+hba1c_admission_mortalitySet<-hba1c_admission_mortalitySet[dateplustime1<max(dateplustime1) | DeathDateUnix<max(dateplustime1)]
+
+  # if not dead, then date of first admission or 0 if not admitted
+#  hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix==0,hba1c_admission_mortalitySet$dateplustime1,0)
+  # if dead, then date of death if date of first admission 0
+#  hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix>0 & hba1c_admission_mortalitySet$dateplustime1==0,hba1c_admission_mortalitySet$DeathDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death)
+   
+ #   simpleSurvivalPlotVariableOutcome(hba1c_admission_mortalitySet,max(admissionsDT$dateplustime1),sampleDateUnix,hba1c_admission_mortalitySet$dateplustime1,hba1c_admission_mortalitySet$hba1cIQRinRange,0)
+    
+
+########### ###########
+    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & diabetesDurationYears>=(runInMonths/12))
+    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & age_atSampleTime<17 & diabetesDurationYears>=(runInMonths/12))
+    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 2 Diabetes Mellitus" & diabetesDurationYears>=(runInMonths/12))
+    
+    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$dateplustime1,testSubset$hba1cIQRinRange,0)
+    
+    
+#    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$firstAdmission_or_death,testSubset$hba1cIQRinRange,0)
+    
+
+###############################################################################################
+## hba1c sbp variability assessment
+
+#sbp
+SBPsetDT[, c("flagValuesWithinRangeForSpecifiedTimePoint") := flagValuesWithinRangeForSpecifiedTimePoint(LinkId,dateplustime1,runInMonths,endDateUnix,DeathDateUnix) , by=.(LinkId)]
+SBPsetDT<-SBPsetDT[flagValuesWithinRangeForSpecifiedTimePoint==1]
+SBPsetDT[, nValsPerIDinRange := .N , by=.(LinkId)]
+SBPsetDT[, valInSequencePerID := seq(1,.N,1) , by=.(LinkId)]
+SBPsetDT[, sbpIQRinRange := (quantile(sbpNumeric)[4]-quantile(sbpNumeric)[2]) , by=.(LinkId)]
+SBPsetDT[, medianSBPInRange := (median(sbpNumeric)) , by=.(LinkId)]
+
+SBPsetDTforMerge<-SBPsetDT[valInSequencePerID==1]
+# SBPsetDTforMerge<-SBPsetDTforMerge[nValsPerIDinRange>0]
+sbpMergeSubset<-data.table(SBPsetDTforMerge$LinkId,SBPsetDTforMerge$sbpIQRinRange,SBPsetDTforMerge$medianSBPInRange)
+colnames(sbpMergeSubset)<-c("LinkId","sbpIQRinRange","medianSBPInRange")
+
+masterAnalysisSet<-merge(coreDataPrepDT,hba1cMergeSubset,by.x="LinkId",by.y="LinkId"); print(nrow(masterAnalysisSet))
+masterAnalysisSet<-merge(masterAnalysisSet,sbpMergeSubset,by.x="LinkId",by.y="LinkId"); print(nrow(masterAnalysisSet))
+
+masterAnalysisSet$age_atSampleTime<-(sampleDateUnix-masterAnalysisSet$birthDateUnix)/(60*60*24*365.25)
+
+
+
+T1_hbA1c_bp_AnalysisSet<-masterAnalysisSet[DiabetesMellitusType_Mapped=="Type 1 Diabetes Mellitus"]
+T2_hbA1c_bp_AnalysisSet<-masterAnalysisSet[DiabetesMellitusType_Mapped=="Type 2 Diabetes Mellitus"]
+
+plotSet<-T2_hbA1c_bp_AnalysisSet
+
+plot(plotSet$hba1cIQRinRange,plotSet$sbpIQRinRange)
+  fit<-lm(plotSet$sbpIQRinRange ~ plotSet$hba1cIQRinRange); print(fit)
+  abline(fit,col="red")
+boxplot(plotSet$sbpIQRinRange ~ cut(plotSet$hba1cIQRinRange,breaks=seq(0,105,1)),varwidth=T,xlim=c(0,20),ylim=c(5,15))
+
+simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T2_hbA1c_bp_AnalysisSet$sbpIQRinRange,0.6)
+
+
+
+
+
