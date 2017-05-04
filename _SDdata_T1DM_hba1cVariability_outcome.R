@@ -168,33 +168,33 @@ simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUni
 ########################################################################################
 ## load in datasets
 
-diagnosisSetDF<-read.csv("../GlCoSy/SD_workingSource/diagnosisSetDT.csv")
+diagnosisSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/diagnosisSetDT.csv")
 diagnosisSetDF<-subset(diagnosisSetDF,diagnosisDateUnix>returnUnixDateTime("1900-01-01"))
 diagnosisSetDF<-subset(diagnosisSetDF,birthDateUnix>returnUnixDateTime("1900-01-01"))
 limitedDeathSetDF<-data.frame(diagnosisSetDF$LinkId,diagnosisSetDF$DeathDateUnix); colnames(limitedDeathSetDF)<-c("LinkId","DeathDateUnix")
 
-hba1cDF<-read.csv("../GlCoSy/SD_workingSource/hba1cDTclean2.csv")
+hba1cDF<-read.csv("~/R/GlCoSy/SD_workingSource/hba1cDTclean2.csv")
 hba1cDF<-merge(hba1cDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-SBPsetDF<-read.csv("../GlCoSy/SD_workingSource/SBPsetDTclean.csv")
+SBPsetDF<-read.csv("~/R/GlCoSy/SD_workingSource/SBPsetDTclean.csv")
 SBPsetDF<-merge(SBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-DBPsetDF<-read.csv("../GlCoSy/SD_workingSource/DBPsetDTclean.csv")
+DBPsetDF<-read.csv("~/R/GlCoSy/SD_workingSource/DBPsetDTclean.csv")
 DBPsetDF<-merge(DBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
 # albuminSetACRDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
 # albuminSetACRDF<-merge(albuminSetACRDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-eyeSetDF<-read.csv("../GlCoSy/SD_workingSource/eyeSetDT.csv")
+eyeSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/eyeSetDT.csv")
 eyeSetDF<-merge(eyeSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-bmiSetDF<-read.csv("../GlCoSy/SD_workingSource/BMISetDTclean.csv")
+bmiSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/BMISetDTclean.csv")
 bmiSetDF<-merge(bmiSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-renalSetDF<-read.csv("../GlCoSy/SD_workingSource/renalSetDTclean.csv")
+renalSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/renalSetDTclean.csv")
 renalSetDF<-merge(renalSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
-albuminSetDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
+albuminSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
 albuminSetDF<-merge(albuminSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 albuminSetDF$logACRnumeric<-log(albuminSetDF$acrNumeric)
 
@@ -203,9 +203,9 @@ albuminSetDF$logACRnumeric<-log(albuminSetDF$acrNumeric)
 ## endDate - right censor point for survival
 endDate<-"2016-12-01"; endDateUnix<-returnUnixDateTime(endDate)
 ##  sampleDate - arbitrary time point for sampling
-sampleDate<-"2012-01-01"; sampleDateUnix<-returnUnixDateTime(sampleDate)
+sampleDate<-"2013-01-01"; sampleDateUnix<-returnUnixDateTime(sampleDate)
 
-runInMonths<-48
+runInMonths<-30
 
 
 diagnosisSetDT<-data.table(diagnosisSetDF)
@@ -265,26 +265,33 @@ simpleSurvivalPlot(T2_hbA1cAnalysisSet,endDateUnix,sampleDateUnix,0.8)
 #
 # survival in the subsets who have a duration of diabetes longer than the runin period
 simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)),endDateUnix,sampleDateUnix,0.9)
-simpleSurvivalPlot(subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)),endDateUnix,sampleDateUnix,0.8)
+simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12),endDateUnix,sampleDateUnix,0.8)
+simpleSurvivalPlot(subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12),endDateUnix,sampleDateUnix,0.6)
 
-simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12) & age_atSampleTime<25),endDateUnix,sampleDateUnix,0.9)
+simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>((runInMonths/12)+12) & age_atSampleTime<25),endDateUnix,sampleDateUnix,0.9)
+
+fit <- glm(formula = isDead ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)))
+# remove diabetes duration as non-significant in logistic regression
+fit <- glm(formula = isDead ~ (age_atSampleTime + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)))
+
 
 #
 #
 #############################
 # admission data
-T1_admissions<-read.csv("../GlCoSy/source/admissionDataDT_T1DM.csv")
+T1_admissions<-read.csv("~/R/GlCoSy/source/admissionDataDT_T1DM.csv")
 T1_admissions_sub<-data.frame(T1_admissions$ID,T1_admissions$dateplustime1,T1_admissions$admissionNumberFlag,T1_admissions$nCBGperAdmission,T1_admissions$admissionDurationDays); colnames(T1_admissions_sub)<-c("ID","dateplustime1","admissionNumberFlag","nCBGperAdmission","admissionDurationDays")
 
-T2_admissions<-read.csv("../GlCoSy/source/admissionDataDT_T2DM.csv")
+T2_admissions<-read.csv("~/R/GlCoSy/source/admissionDataDT_T2DM.csv")
 T2_admissions_sub<-data.frame(T2_admissions$ID,T2_admissions$dateplustime1,T2_admissions$admissionNumberFlag,T2_admissions$nCBGperAdmission,T2_admissions$admissionDurationDays); colnames(T2_admissions_sub)<-c("ID","dateplustime1","admissionNumberFlag","nCBGperAdmission","admissionDurationDays")
 
 admissions<-rbind(T1_admissions_sub,T2_admissions_sub)
 admissionsDT<-data.table(admissions)
 
 ## more than 2 CBGs to count as an admission
-# admissionsDT<-admissionsDT[nCBGperAdmission>2]
-admissionsDT<-admissionsDT[admissionDurationDays>0.5]
+# 
+admissionsDT<-admissionsDT[nCBGperAdmission>2]
+# admissionsDT<-admissionsDT[admissionDurationDays>0.5]
 
 ## cut admissions to all those after the sampleDate
 admissionsDTafterSampleDate<-admissionsDT[dateplustime1>sampleDateUnix]
@@ -292,27 +299,37 @@ admissionsDTafterSampleDate[, minAdmissionNumberFlag := (min(admissionNumberFlag
 admissionsDTafterSampleDate$flagForFirstAdmissionPostSampleDate<-ifelse(admissionsDTafterSampleDate$admissionNumberFlag==admissionsDTafterSampleDate$minAdmissionNumberFlag,1,0)
 
 ## load in all data to translate ID and LinkID
-demogALL<-read.csv("../GlCoSy/SDsource/diagnosisDateDeathDate.txt")
+demogALL<-read.csv("~/R/GlCoSy/SDsource/diagnosisDateDeathDate.txt")
 admissionsDTafterSampleDateWithLinkID<-merge(admissionsDTafterSampleDate,demogALL,by.x="ID",by.y="PatId")
 # merge death and admission Data
 hba1c_admission_mortalitySet<-merge(hbA1cAnalysisSet,admissionsDTafterSampleDateWithLinkID,by.x="LinkId",by.y="LinkId",all.x=T)
 hba1c_admission_mortalitySet$dateplustime1[is.na(hba1c_admission_mortalitySet$dateplustime1)]<-0
 hba1c_admission_mortalitySet<-hba1c_admission_mortalitySet[dateplustime1<max(dateplustime1) | DeathDateUnix<max(dateplustime1)]
 
-  # if not dead, then date of first admission or 0 if not admitted
-#  hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix==0,hba1c_admission_mortalitySet$dateplustime1,0)
+# only use first admission post sample date:
+#
+hba1c_admission_mortalitySet <- hba1c_admission_mortalitySet[flagForFirstAdmissionPostSampleDate == 1]
+
+# if not dead, then date of first admission or 0 if not admitted
+#  
+hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix==0,hba1c_admission_mortalitySet$dateplustime1,0)
   # if dead, then date of death if date of first admission 0
-#  hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix>0 & hba1c_admission_mortalitySet$dateplustime1==0,hba1c_admission_mortalitySet$DeathDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death)
+#
+hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix>0 & hba1c_admission_mortalitySet$dateplustime1==0,hba1c_admission_mortalitySet$DeathDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death)
    
- #   simpleSurvivalPlotVariableOutcome(hba1c_admission_mortalitySet,max(admissionsDT$dateplustime1),sampleDateUnix,hba1c_admission_mortalitySet$dateplustime1,hba1c_admission_mortalitySet$hba1cIQRinRange,0)
+ #  
+simpleSurvivalPlotVariableOutcome(hba1c_admission_mortalitySet,max(admissionsDT$dateplustime1),sampleDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death,hba1c_admission_mortalitySet$hba1cIQRinRange,0)
     
 
 ########### ###########
-    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & diabetesDurationYears>=(runInMonths/12))
+    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & diabetesDurationYears>=((runInMonths/12)+12))
     testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & age_atSampleTime<17 & diabetesDurationYears>=(runInMonths/12))
     testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 2 Diabetes Mellitus" & diabetesDurationYears>=(runInMonths/12))
     
-    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$dateplustime1,testSubset$hba1cIQRinRange,0)
+    # simpleSurvivalPlotVariableOutcome(testSubset,endDateUnix,sampleDateUnix,testSubset$dateplustime1,testSubset$hba1cIQRinRange,0)
+    
+    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$firstAdmission_or_death,testSubset$hba1cIQRinRange,0)
+    
     
     
 #    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$firstAdmission_or_death,testSubset$hba1cIQRinRange,0)
