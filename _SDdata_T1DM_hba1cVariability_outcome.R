@@ -396,7 +396,7 @@ addmittedOrDead_T1 <- ifelse(t1_plotset$dateplustime1 > 0 & t1_plotset$dateplust
 fit <- glm(formula = addmittedOrDead_T1 ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = t1_plotset)
 
 
-    
+    ## version to produce plots and numbers for paper
     
     
 #    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$firstAdmission_or_death,testSubset$hba1cIQRinRange,0)
