@@ -358,6 +358,8 @@ firstAdmissionsDTafterSampleDate_addLinkID_hbIQR <- merge(firstAdmissionsDTafter
 simpleSurvivalPlotVariableOutcome(firstAdmissionsDTafterSampleDate_addLinkID_hbIQR,max(admissionsDT$dateplustime1),sampleDateUnix,firstAdmissionsDTafterSampleDate_addLinkID_hbIQR$dateplustime1,firstAdmissionsDTafterSampleDate_addLinkID_hbIQR$hba1cIQRinRange,0)
 ## if you are admitted, this is a good predictor of early admission
 
+######################################
+
 ## for all admitted OR not admitted
 all_hbIQR_patients <- merge(hbA1cAnalysisSet, firstAdmissionsDTafterSampleDate_addLinkID, by.x = "LinkId", by.y = "LinkId", all.x = T)
 ## make all non-admitted patients date of admission 0
@@ -373,7 +375,21 @@ simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampl
 t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
 
-
+######################################
+# add competing endpoint of death
+all_hbIQR_patients <- merge(hbA1cAnalysisSet, firstAdmissionsDTafterSampleDate_addLinkID, by.x = "LinkId", by.y = "LinkId", all.x = T)
+## make all non-admitted patients date of admission 0
+all_hbIQR_patients$dateplustime1[is.na(all_hbIQR_patients$dateplustime1)]<-0
+## make all zeros equal to the max followup period
+all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$dateplustime1 == 0, max(all_hbIQR_patients$dateplustime1), all_hbIQR_patients$dateplustime1)
+## add mortality as competing endpoint:
+all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$DeathDateUnix > 0 & all_hbIQR_patients$DeathDateUnix < all_hbIQR_patients$dateplustime1, all_hbIQR_patients$DeathDateUnix, all_hbIQR_patients$dateplustime1)
+## plot survival to admission. T1DM patients
+t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
+simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$hba1cIQRinRange,0)
+## plot survival to admission. T2DM patients
+t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
+simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
 
 
 # only use first admission post sample date:
