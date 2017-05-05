@@ -73,12 +73,12 @@ simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
   
   mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
-  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
   mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
   legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
   summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
-  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("bottomright",legendText,cex=0.6)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("topright",legendText,cex=0.6)
   
   print(mfitAge50.coxph)
   
@@ -306,14 +306,14 @@ simpleSurvivalPlot(T2_hbA1cAnalysisSet,endDateUnix,sampleDateUnix,0.8)
 #
 # survival in the subsets who have a duration of diabetes longer than the runin period
 simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)),endDateUnix,sampleDateUnix,0.9)
-simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12),endDateUnix,sampleDateUnix,0.8)
+simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12),endDateUnix,sampleDateUnix,0.9)
 simpleSurvivalPlot(subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12),endDateUnix,sampleDateUnix,0.6)
 
 simpleSurvivalPlot(subset(T1_hbA1cAnalysisSet,diabetesDurationYears>((runInMonths/12)+12) & age_atSampleTime<25),endDateUnix,sampleDateUnix,0.9)
 
-fit <- glm(formula = isDead ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)))
+fit <- glm(formula = isDead ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12))
 # remove diabetes duration as non-significant in logistic regression
-fit <- glm(formula = isDead ~ (age_atSampleTime + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)))
+fit <- glm(formula = isDead ~ (age_atSampleTime + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12)+12))
 
 # ? need to remove diabetes duration from the cox model?
 #
