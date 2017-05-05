@@ -391,31 +391,11 @@ simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampl
 t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
 
+# logistic regression
+addmittedOrDead_T1 <- ifelse(t1_plotset$dateplustime1 > 0 & t1_plotset$dateplustime1 < max(t1_plotset$dateplustime1), 1, 0)
+fit <- glm(formula = addmittedOrDead_T1 ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = t1_plotset)
 
-# only use first admission post sample date:
-#
-hba1c_admission_mortalitySet <- hba1c_admission_mortalitySet[flagForFirstAdmissionPostSampleDate == 1]
 
-
-# if not dead, then date of first admission or 0 if not admitted
-#  
-hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix==0,hba1c_admission_mortalitySet$dateplustime1,0)
-  # if dead, then date of death if date of first admission 0
-#
-hba1c_admission_mortalitySet$firstAdmission_or_death<-ifelse(hba1c_admission_mortalitySet$DeathDateUnix>0 & hba1c_admission_mortalitySet$dateplustime1==0,hba1c_admission_mortalitySet$DeathDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death)
-   
- #  
-simpleSurvivalPlotVariableOutcome(hba1c_admission_mortalitySet,max(admissionsDT$dateplustime1),sampleDateUnix,hba1c_admission_mortalitySet$firstAdmission_or_death,hba1c_admission_mortalitySet$hba1cIQRinRange,0)
-    
-
-########### ###########
-    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & diabetesDurationYears>=((runInMonths/12)+12))
-    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 1 Diabetes Mellitus" & age_atSampleTime<17 & diabetesDurationYears>=(runInMonths/12))
-    testSubset<-subset(hba1c_admission_mortalitySet,DiabetesMellitusType_Mapped.x=="Type 2 Diabetes Mellitus" & diabetesDurationYears>=(runInMonths/12))
-    
-    # simpleSurvivalPlotVariableOutcome(testSubset,endDateUnix,sampleDateUnix,testSubset$dateplustime1,testSubset$hba1cIQRinRange,0)
-    
-    simpleSurvivalPlotVariableOutcome(testSubset,max(admissionsDT$dateplustime1),sampleDateUnix,testSubset$firstAdmission_or_death,testSubset$hba1cIQRinRange,0)
     
     
     
