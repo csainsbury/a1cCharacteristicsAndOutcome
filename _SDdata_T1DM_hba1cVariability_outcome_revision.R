@@ -531,6 +531,10 @@ quantile(matchedFrame[low_IQR == 1]$medianHbA1cInRange)
 quantile(matchedFrame[low_IQR == 0]$hba1cIQRinRange)
 quantile(matchedFrame[low_IQR == 1]$hba1cIQRinRange)
 
+
+quantile(matchedFrame[low_IQR == 0]$nValsPerIDinRange)
+quantile(matchedFrame[low_IQR == 1]$nValsPerIDinRange)
+
 simpleSurvivalPlot_noMedianCoV(matchedFrame,endDateUnix,sampleDateUnix,0.9)
 
 
