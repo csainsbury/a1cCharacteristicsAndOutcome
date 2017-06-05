@@ -3,6 +3,8 @@ library(ggplot2)
 library(randomForest)
 library(survival)
 
+set.seed(42)
+
 
 ## functions
 
@@ -74,7 +76,10 @@ simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
   mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
   plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
-  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  
+ # mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  
+ mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
   legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
   summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
@@ -83,6 +88,48 @@ simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
   print(mfitAge50.coxph)
   
 }
+
+
+simpleSurvivalPlot_noMedianCoV<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
+  
+  SurvivalData<-inputFrame
+  
+  DaySeconds<-(60*60*24)
+  shortCensorPeriodStartDay  <- DaySeconds
+  shortCensorPeriodEndDay    <- DaySeconds*10000
+  
+  lastDOD<-endDateUnix
+  SurvivalData$dateOfDischarge<-sampleDateUnix
+  SurvivalData$timeToDeath<-ifelse(SurvivalData$isDead==1,(SurvivalData$DeathDateUnix-SurvivalData$dateOfDischarge),0)
+  #		SurvivalData$timeToDeath<-SurvivalData$timeToDeath/DaySeconds
+  SurvivalData$timeToDeathInterval<-ifelse(SurvivalData$isDead==0,(lastDOD-SurvivalData$dateOfDischarge),SurvivalData$timeToDeath)
+  SurvivalData$timeToDeathInterval[is.na(SurvivalData$timeToDeathInterval)]<-0; SurvivalData<-subset(SurvivalData,timeToDeathInterval>0)
+  # SurvivalData$timeToDeathInterval<-SurvivalData$timeToDeathInterval/(60*60*24*365.25)
+  
+  SurvivalData$shortDeathEvent <- SurvivalData$isDead
+  # SurvivalData$shortDeathEvent <- ifelse(SurvivalData$isDead==1 & SurvivalData$timeToDeath>=(shortCensorPeriodStartDay) & SurvivalData$timeToDeath<(shortCensorPeriodEndDay),1,0)	
+  
+  #  SurvivalData$sexDigit<-ifelse(nchar(SurvivalData$charID==9),as.numeric(substr(SurvivalData$charID,8,8)),as.numeric(substr(SurvivalData$charID,9,9)))
+  # SurvivalData$sexNumber<-ifelse(SurvivalData$sexDigit%%2==0,1,0)
+  #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
+  
+  
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
+  
+  # mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
+  legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
+  summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("topright",legendText,cex=0.6)
+  
+  print(mfitAge50.coxph)
+  
+}
+
 
 
 simpleSurvivalPlotMultiTest<-function(inputFrame,endDateUnix,sampleDateUnix,testMetric,ylimMin) {
@@ -436,6 +483,67 @@ plot(plotSet$hba1cIQRinRange,plotSet$sbpIQRinRange)
 boxplot(plotSet$sbpIQRinRange ~ cut(plotSet$hba1cIQRinRange,breaks=seq(0,105,1)),varwidth=T,xlim=c(0,20),ylim=c(5,15))
 
 simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T2_hbA1c_bp_AnalysisSet$sbpIQRinRange,0.6)
+
+
+###########################
+# matching attempt for T1_hbA1cAnalysisSet. match hba1c median to compare IQR difference and death at 1430 days.
+
+T1_hbA1cAnalysisSet_matchSet <- T1_hbA1cAnalysisSet
+T1_hbA1cAnalysisSet_matchSet$available_for_matching <- 0
+median_window = 0.25
+
+T1_hbA1cAnalysisSet_matchSet$low_IQR <- ifelse(T1_hbA1cAnalysisSet_matchSet$hba1cIQRinRange < quantile(T1_hbA1cAnalysisSet_matchSet$hba1cIQRinRange)[3], 1, 0)
+
+T1_hbA1cAnalysisSet_matchSet[low_IQR == 0]$available_for_matching <- 1
+
+print(nrow(T1_hbA1cAnalysisSet_matchSet[low_IQR == 1]))
+
+for (jj in seq(1, nrow(T1_hbA1cAnalysisSet_matchSet[low_IQR == 1]), 1)) {
+  
+  if(jj %% 100 == 0) {print(jj)}
+  
+  indexID <- T1_hbA1cAnalysisSet_matchSet[low_IQR == 1][jj]
+  indexID$matching_number <- jj
+
+  # matchPool <- T1_hbA1cAnalysisSet_matchSet[low_IQR == 0 & available_for_matching == 1][medianHbA1cInRange > (indexID$medianHbA1cInRange - (median_window / 2)) & medianHbA1cInRange < (indexID$medianHbA1cInRange + (median_window / 2))]
+  
+  matchPool <- T1_hbA1cAnalysisSet_matchSet[low_IQR == 0 & available_for_matching == 1][medianHbA1cInRange == indexID$medianHbA1cInRange]
+  
+  matchID <- matchPool[sample(1:nrow(matchPool), 1), ]
+  matchID$matching_number <- jj
+  
+  T1_hbA1cAnalysisSet_matchSet[LinkId == matchID$LinkId]$available_for_matching <- 0
+  
+  if (jj == 1) { matchedFrame <- rbind(indexID, matchID)}
+  if (jj > 1)  { matchedFrame <- rbind(matchedFrame, indexID, matchID)}
+  
+}
+
+matchedFrame$LinkId[is.na(matchedFrame$LinkId)] <- 0
+matchedFrame <- matchedFrame[LinkId > 0]
+
+matchedFrame[, c("flag_matchFound") := ifelse(.N == 2, 1, 0) , by=.(matching_number)]
+matchedFrame <- matchedFrame[flag_matchFound == 1]
+
+quantile(matchedFrame[low_IQR == 0]$medianHbA1cInRange)
+quantile(matchedFrame[low_IQR == 1]$medianHbA1cInRange)
+
+quantile(matchedFrame[low_IQR == 0]$hba1cIQRinRange)
+quantile(matchedFrame[low_IQR == 1]$hba1cIQRinRange)
+
+simpleSurvivalPlot_noMedianCoV(matchedFrame,endDateUnix,sampleDateUnix,0.9)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
