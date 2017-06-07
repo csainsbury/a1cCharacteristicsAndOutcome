@@ -552,6 +552,11 @@ simpleSurvivalPlotVariableOutcome(all_hbIQR_patients,max(admissionsDT$dateplusti
 ## plot survival to admission. T1DM patients
 t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$hba1cIQRinRange,0)
+# cv
+simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$CV_HbA1cInRange,0)
+# ncv
+simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$npCV_HbA1cInRange,0)
+
 ## plot survival to admission. T2DM patients
 t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
