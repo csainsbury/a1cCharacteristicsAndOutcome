@@ -573,6 +573,11 @@ all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$DeathDateUnix > 0 
 ## plot survival to admission. T1DM patients
 t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$hba1cIQRinRange,0)
+  # cv
+  simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$CV_HbA1cInRange,0)
+  # np cv
+  simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$npCV_HbA1cInRange,0)
+
 ## plot survival to admission. T2DM patients
 t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
 simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
@@ -592,27 +597,53 @@ fit <- glm(formula = addmittedOrDead_T1 ~ (age_atSampleTime + diabetesDurationYe
 ## hba1c sbp variability assessment
 
 #sbp
-SBPsetDT[, c("flagValuesWithinRangeForSpecifiedTimePoint") := flagValuesWithinRangeForSpecifiedTimePoint(LinkId,dateplustime1,runInMonths,endDateUnix,DeathDateUnix) , by=.(LinkId)]
+SBPsetDT[, c("flagValuesWithinRangeForSpecifiedTimePoint") := flagValuesWithinRangeForSpecifiedTimePoint(LinkId,dateplustime1,runInMonths,sampleDateUnix) , by=.(LinkId)]
+
 SBPsetDT<-SBPsetDT[flagValuesWithinRangeForSpecifiedTimePoint==1]
-SBPsetDT[, nValsPerIDinRange := .N , by=.(LinkId)]
-SBPsetDT[, valInSequencePerID := seq(1,.N,1) , by=.(LinkId)]
+SBPsetDT[, nValsPerIDinRange_sbp := .N , by=.(LinkId)]
+SBPsetDT[, valInSequencePerID_sbp := seq(1,.N,1) , by=.(LinkId)]
 SBPsetDT[, sbpIQRinRange := (quantile(sbpNumeric)[4]-quantile(sbpNumeric)[2]) , by=.(LinkId)]
 SBPsetDT[, medianSBPInRange := (median(sbpNumeric)) , by=.(LinkId)]
 
-SBPsetDTforMerge<-SBPsetDT[valInSequencePerID==1]
+SBPsetDT[, meanSBPInRange := (mean(sbpNumeric)) , by=.(LinkId)]
+SBPsetDT[, sd_SBPInRange := (sd(sbpNumeric)) , by=.(LinkId)]
+
+CV <- function(mean, sd){
+  (sd/mean)*100
+}
+
+npCV <- function(median, IQR){
+  (IQR/median)*100
+}
+
+SBPsetDT[, CV_SBPInRange := (CV(meanSBPInRange, sd_SBPInRange)) , by=.(LinkId)]
+SBPsetDT[, npCV_SBPInRange := (npCV(medianSBPInRange, sbpIQRinRange)) , by=.(LinkId)]
+
+SBPsetDTforMerge<-SBPsetDT[valInSequencePerID_sbp==1]
 # SBPsetDTforMerge<-SBPsetDTforMerge[nValsPerIDinRange>0]
-sbpMergeSubset<-data.table(SBPsetDTforMerge$LinkId,SBPsetDTforMerge$sbpIQRinRange,SBPsetDTforMerge$medianSBPInRange)
-colnames(sbpMergeSubset)<-c("LinkId","sbpIQRinRange","medianSBPInRange")
+sbpMergeSubset<-data.table(SBPsetDTforMerge$LinkId,SBPsetDTforMerge$sbpIQRinRange,SBPsetDTforMerge$medianSBPInRange, SBPsetDTforMerge$CV_SBPInRange, SBPsetDTforMerge$npCV_SBPInRange, SBPsetDTforMerge$nValsPerIDinRange_sbp)
+colnames(sbpMergeSubset)<-c("LinkId","sbpIQRinRange","medianSBPInRange", "CV_SBPInRange", "npCV_SBPInRange", "nValsPerIDinRange_sbp")
 
 masterAnalysisSet<-merge(coreDataPrepDT,hba1cMergeSubset,by.x="LinkId",by.y="LinkId"); print(nrow(masterAnalysisSet))
 masterAnalysisSet<-merge(masterAnalysisSet,sbpMergeSubset,by.x="LinkId",by.y="LinkId"); print(nrow(masterAnalysisSet))
 
-masterAnalysisSet$age_atSampleTime<-(sampleDateUnix-masterAnalysisSet$birthDateUnix)/(60*60*24*365.25)
+# remove those who die during the run in - before the sampleDate
+sbpAnalysisSet<-masterAnalysisSet[DeathDateUnix>sampleDateUnix | DeathDateUnix==0]
+#
+## add age at sample time
+sbpAnalysisSet$age_atSampleTime<-(sampleDateUnix-sbpAnalysisSet$birthDateUnix)/(60*60*24*365.25)
+#
+## show distribution of number of hba1c measures during runin
+hist(sbpAnalysisSet$nValsPerIDinRange)
+sbpAnalysisSet<-sbpAnalysisSet[nValsPerIDinRange_sbp>1]
+#
 
+T1_hbA1c_bp_AnalysisSet<-sbpAnalysisSet[DiabetesMellitusType_Mapped=="Type 1 Diabetes Mellitus"]
+T2_hbA1c_bp_AnalysisSet<-sbpAnalysisSet[DiabetesMellitusType_Mapped=="Type 2 Diabetes Mellitus"]
 
+simpleSurvivalPlotMultiTest(T1_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T1_hbA1c_bp_AnalysisSet$sbpIQRinRange,0.6)
+simpleSurvivalPlotMultiTest(T1_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T1_hbA1c_bp_AnalysisSet$CV_SBPInRange,0.6)
 
-T1_hbA1c_bp_AnalysisSet<-masterAnalysisSet[DiabetesMellitusType_Mapped=="Type 1 Diabetes Mellitus"]
-T2_hbA1c_bp_AnalysisSet<-masterAnalysisSet[DiabetesMellitusType_Mapped=="Type 2 Diabetes Mellitus"]
 
 plotSet<-T2_hbA1c_bp_AnalysisSet
 
@@ -620,6 +651,8 @@ plot(plotSet$hba1cIQRinRange,plotSet$sbpIQRinRange)
   fit<-lm(plotSet$sbpIQRinRange ~ plotSet$hba1cIQRinRange); print(fit)
   abline(fit,col="red")
 boxplot(plotSet$sbpIQRinRange ~ cut(plotSet$hba1cIQRinRange,breaks=seq(0,105,1)),varwidth=T,xlim=c(0,20),ylim=c(5,15))
+boxplot(plotSet$CV_SBPInRange ~ cut(plotSet$CV_HbA1cInRange,breaks=seq(0,105,1)),varwidth=T,xlim=c(0,20),ylim=c(5,15))
+
 
 simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T2_hbA1c_bp_AnalysisSet$sbpIQRinRange,0.6)
 
