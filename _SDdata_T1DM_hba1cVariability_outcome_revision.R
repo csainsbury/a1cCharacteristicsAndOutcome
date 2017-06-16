@@ -168,7 +168,6 @@ simpleSurvivalPlot_noMedianCoV<-function(inputFrame,endDateUnix,sampleDateUnix,y
   
 }
 
-
 simpleSurvivalPlotMultiTest<-function(inputFrame,endDateUnix,sampleDateUnix,testMetric,ylimMin) {
   
   SurvivalData<-data.frame(inputFrame,testMetric)
@@ -206,7 +205,6 @@ simpleSurvivalPlotMultiTest<-function(inputFrame,endDateUnix,sampleDateUnix,test
   
 }
 
-
 simpleSurvivalPlotMultiTest_noMedian<-function(inputFrame,endDateUnix,sampleDateUnix,testMetric,ylimMin) {
   
   SurvivalData<-data.frame(inputFrame,testMetric)
@@ -243,8 +241,6 @@ simpleSurvivalPlotMultiTest_noMedian<-function(inputFrame,endDateUnix,sampleDate
   print(mfitAge50.coxph)
   
 }
-
-
 
 simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
   
@@ -285,7 +281,6 @@ simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUni
   print(mfitAge50.coxph)
   
 }
-
 
 simpleSurvivalPlotVariableOutcome_noDD<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
   
@@ -345,22 +340,22 @@ SBPsetDF<-merge(SBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
 
 DBPsetDF<-read.csv("~/R/GlCoSy/SD_workingSource/DBPsetDTclean.csv")
 DBPsetDF<-merge(DBPsetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-
-# albuminSetACRDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
-# albuminSetACRDF<-merge(albuminSetACRDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-
-eyeSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/eyeSetDT.csv")
-eyeSetDF<-merge(eyeSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-
-bmiSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/BMISetDTclean.csv")
-bmiSetDF<-merge(bmiSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-
-renalSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/renalSetDTclean.csv")
-renalSetDF<-merge(renalSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-
-albuminSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
-albuminSetDF<-merge(albuminSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
-albuminSetDF$logACRnumeric<-log(albuminSetDF$acrNumeric)
+# 
+# # albuminSetACRDF<-read.csv("../GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
+# # albuminSetACRDF<-merge(albuminSetACRDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+# 
+# eyeSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/eyeSetDT.csv")
+# eyeSetDF<-merge(eyeSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+# 
+# bmiSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/BMISetDTclean.csv")
+# bmiSetDF<-merge(bmiSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+# 
+# renalSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/renalSetDTclean.csv")
+# renalSetDF<-merge(renalSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+# 
+# albuminSetDF<-read.csv("~/R/GlCoSy/SD_workingSource/albuminSetACRDTclean.csv")
+# albuminSetDF<-merge(albuminSetDF,limitedDeathSetDF,by.x="LinkId",by.y="LinkId")
+# albuminSetDF$logACRnumeric<-log(albuminSetDF$acrNumeric)
 
 #########################
 # predictionDurationYears<-outputTNframe$valueToInject[jj]
@@ -377,10 +372,10 @@ diagnosisSetDT$isDead<-ifelse(diagnosisSetDT$DeathDateUnix>0,1,0)
 hba1cDT<-data.table(hba1cDF)
 SBPsetDT<-data.table(SBPsetDF)
 DBPsetDT<-data.table(DBPsetDF)
-eyeSetDT<-data.table(eyeSetDF)
-bmiSetDT<-data.table(bmiSetDF)
-renalSetDT<-data.table(renalSetDF)
-albuminSetDT<-data.table(albuminSetDF)
+# eyeSetDT<-data.table(eyeSetDF)
+# bmiSetDT<-data.table(bmiSetDF)
+# renalSetDT<-data.table(renalSetDF)
+# albuminSetDT<-data.table(albuminSetDF)
 
 ########################################################################################
 ## set up values to pass to RF for each paramter
@@ -393,6 +388,11 @@ coreDataPrepDT$diabetesDurationYears<-(sampleDateUnix-coreDataPrepDT$diagnosisDa
 # coreDataPrepDT$timeAtExtractOrDeath<-coreDataPrepDT$birthDateUnix+(coreDataPrepDT$ageAtExtractOrDeath*(60*60*24*365.25))
 
 # coreDataPrepDT$ageAtExtractOrDeath<-NULL
+
+# find proportion of pumps in last year
+t1_notDead <- coreDataPrepDT[DiabetesMellitusType_Mapped == 'Type 1 Diabetes Mellitus' & isDead == 0]
+
+
 
 # hba1c
 hba1cDT[, c("flagValuesWithinRangeForSpecifiedTimePoint") := flagValuesWithinRangeForSpecifiedTimePoint(LinkId,dateplustime1,runInMonths,sampleDateUnix) , by=.(LinkId)]
@@ -413,14 +413,21 @@ npCV <- function(median, IQR){
   (IQR/median)*100
 }
 
+qcD <- function(newNumeric) {
+  q_1 <- quantile(newNumeric)[2]
+  q_3 <- quantile(newNumeric)[4]
+  
+  qcD <- ((q_3 - q_1) / (q_1 + q_3))
+}
+
 hba1cDT[, CV_HbA1cInRange := (CV(meanHbA1cInRange, sd_HbA1cInRange)) , by=.(LinkId)]
 hba1cDT[, npCV_HbA1cInRange := (npCV(medianHbA1cInRange, hba1cIQRinRange)) , by=.(LinkId)]
-
+hba1cDT[, qcD_HbA1cInRange := (qcD(newNumeric)) , by=.(LinkId)]
 
 hba1cDTforMerge<-hba1cDT[valInSequencePerID==1]
 # hba1cDTforMerge<-hba1cDTforMerge[hba1cIQRinRange>0]
-hba1cMergeSubset<-data.table(hba1cDTforMerge$LinkId,hba1cDTforMerge$hba1cIQRinRange,hba1cDTforMerge$medianHbA1cInRange,hba1cDTforMerge$nValsPerIDinRange, hba1cDTforMerge$CV_HbA1cInRange, hba1cDTforMerge$npCV_HbA1cInRange)
-colnames(hba1cMergeSubset)<-c("LinkId", "hba1cIQRinRange", "medianHbA1cInRange", "nValsPerIDinRange", "CV_HbA1cInRange", "npCV_HbA1cInRange")
+hba1cMergeSubset<-data.table(hba1cDTforMerge$LinkId,hba1cDTforMerge$hba1cIQRinRange,hba1cDTforMerge$medianHbA1cInRange,hba1cDTforMerge$nValsPerIDinRange, hba1cDTforMerge$CV_HbA1cInRange, hba1cDTforMerge$npCV_HbA1cInRange, hba1cDTforMerge$qcD_HbA1cInRange)
+colnames(hba1cMergeSubset)<-c("LinkId", "hba1cIQRinRange", "medianHbA1cInRange", "nValsPerIDinRange", "CV_HbA1cInRange", "npCV_HbA1cInRange", "qcD_HbA1cInRange")
 
 
 ###############################################################################################
@@ -476,25 +483,28 @@ sqrt(vif(fit1sw)) # none above 2
 
 ## coef of variability
 testData <- subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12))
+
 testMetric = testData$CV_HbA1cInRange
 testMetric = testData$npCV_HbA1cInRange
+testMetric = testData$qcD_HbA1cInRange
+
 simpleSurvivalPlotMultiTest_noMedian(testData,endDateUnix,sampleDateUnix,testMetric, 0.9)
 
-logitThreshYears <- 1
+logitThreshYears <- 3
 logitThreshSeconds <- logitThreshYears * (60*60*24*365.25)
 
 testData$logit_isDead <- ifelse((testData$DeathDateUnix - sampleDateUnix) < logitThreshSeconds & testData$isDead == 1, 1, 0)
     fit <- glm(formula = logit_isDead ~ (age_atSampleTime + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = testData)
     fit <- glm(formula = logit_isDead ~ (age_atSampleTime + nValsPerIDinRange + CV_HbA1cInRange), family = binomial(link = "logit"), data = testData)
-    
-    
+    fit <- glm(formula = logit_isDead ~ (age_atSampleTime + nValsPerIDinRange + qcD_HbA1cInRange), family = binomial(link = "logit"), data = testData)
     
 testData <- subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12))
+
 testMetric = testData$CV_HbA1cInRange
-testMetric = testData$npCV_HbA1cInRange
-simpleSurvivalPlotMultiTest_noMedian(testData,endDateUnix,sampleDateUnix,testMetric, 0.8) 
+# testMetric = testData$npCV_HbA1cInRange
+# testMetric = testData$qcD_HbA1cInRange
 
-
+simpleSurvivalPlotMultiTest_noMedian(testData,endDateUnix,sampleDateUnix,testMetric, 0.8)
 
 # ? need to remove diabetes duration from the cox model?
 #
@@ -655,10 +665,33 @@ boxplot(plotSet$CV_SBPInRange ~ cut(plotSet$CV_HbA1cInRange,breaks=seq(0,105,1))
 
 
 simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T2_hbA1c_bp_AnalysisSet$sbpIQRinRange,0.6)
+simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T2_hbA1c_bp_AnalysisSet$CV_SBPInRange,0.6)
+
+##################################
+# by bp / hba1v cv either, or both
+
+factorSet <-T1_hbA1c_bp_AnalysisSet
+factorSet$CV_HbA1cInRange[is.na(factorSet$CV_HbA1cInRange)] <- (-5)
+factorSet <- factorSet[CV_HbA1cInRange >= 0]
+
+cv_hb1ac_thresh <- quantile(factorSet$CV_HbA1cInRange)[3]
+cv_sbp_thresh <- quantile(factorSet$CV_SBPInRange)[3]
+
+
+# 0 lower bp and hb, 1 hba1c upper cv, 2 sbp upper cv, 3 both
+factor_cv <- ifelse(factorSet$CV_HbA1cInRange > cv_hb1ac_thresh, 1, 0)
+factor_cv <- ifelse(factorSet$CV_SBPInRange > cv_sbp_thresh, 2, factor_cv)
+factor_cv <- ifelse((factorSet$CV_HbA1cInRange > cv_hb1ac_thresh) & (factorSet$CV_SBPInRange > cv_sbp_thresh), 3, factor_cv)
+
+factor_cvF <- factor(factor_cv)
+
+
+
 
 
 ###########################
 # matching attempt for T1_hbA1cAnalysisSet. match hba1c median to compare IQR difference and death at 1430 days.
+# for paper review
 
 T1_hbA1cAnalysisSet_matchSet <- T1_hbA1cAnalysisSet
 T1_hbA1cAnalysisSet_matchSet$available_for_matching <- 0
