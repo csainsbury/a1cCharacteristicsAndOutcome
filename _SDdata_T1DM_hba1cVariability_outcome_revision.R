@@ -230,7 +230,7 @@ simpleSurvivalPlotMultiTest_noMedian<-function(inputFrame,endDateUnix,sampleDate
   
   
   mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
-  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$testMetric)[3],sep="")
   plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
   mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+nValsPerIDinRange+(testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
   pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
@@ -281,6 +281,48 @@ simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUni
   print(mfitAge50.coxph)
   
 }
+
+
+simpleSurvivalPlotVariableOutcome_noMedian<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
+  
+  SurvivalData<-data.frame(inputFrame,testMetric,outcomeData)
+  
+  SurvivalData$reachesOutcome<-ifelse(SurvivalData$outcomeData>0 & SurvivalData$outcomeData < max(SurvivalData$outcomeData),1,0)
+  
+  DaySeconds<-(60*60*24)
+  shortCensorPeriodStartDay  <- DaySeconds
+  shortCensorPeriodEndDay    <- DaySeconds*10000
+  
+  lastDOD<-endDateUnix
+  SurvivalData$dateOfDischarge<-sampleDateUnix
+  SurvivalData$timeToDeath<-ifelse(SurvivalData$reachesOutcome==1,(SurvivalData$outcomeData-SurvivalData$dateOfDischarge),0)
+  #		SurvivalData$timeToDeath<-SurvivalData$timeToDeath/DaySeconds
+  SurvivalData$timeToDeathInterval<-ifelse(SurvivalData$reachesOutcome==0,(lastDOD-SurvivalData$dateOfDischarge),SurvivalData$timeToDeath)
+  SurvivalData$timeToDeathInterval[is.na(SurvivalData$timeToDeathInterval)]<-0; SurvivalData<-subset(SurvivalData,timeToDeathInterval>0)
+  # SurvivalData$timeToDeathInterval<-SurvivalData$timeToDeathInterval/(60*60*24*365.25)
+  
+  SurvivalData$shortDeathEvent <- SurvivalData$reachesOutcome
+  # SurvivalData$shortDeathEvent <- ifelse(SurvivalData$isDead==1 & SurvivalData$timeToDeath>=(shortCensorPeriodStartDay) & SurvivalData$timeToDeath<(shortCensorPeriodEndDay),1,0)	
+  
+  #  SurvivalData$sexDigit<-ifelse(nchar(SurvivalData$charID==9),as.numeric(substr(SurvivalData$charID,8,8)),as.numeric(substr(SurvivalData$charID,9,9)))
+  # SurvivalData$sexNumber<-ifelse(SurvivalData$sexDigit%%2==0,1,0)
+  #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
+  
+  boxplot(SurvivalData$timeToDeathInterval ~ cut(SurvivalData$hba1cIQRinRange,breaks=seq(0,80,2)),varwidth=T)
+  
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
+  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=3,ylim=c(ylimMin,1))
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+nValsPerIDinRange+(testMetric>=quantile(SurvivalData$testMetric)[3]), data = SurvivalData)
+  pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
+  legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
+  summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
+  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("bottomright",legendText,cex=0.6)
+  
+  print(mfitAge50.coxph)
+  
+}
+
 
 simpleSurvivalPlotVariableOutcome_noDD<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
   
@@ -426,8 +468,8 @@ hba1cDT[, qcD_HbA1cInRange := (qcD(newNumeric)) , by=.(LinkId)]
 
 hba1cDTforMerge<-hba1cDT[valInSequencePerID==1]
 # hba1cDTforMerge<-hba1cDTforMerge[hba1cIQRinRange>0]
-hba1cMergeSubset<-data.table(hba1cDTforMerge$LinkId,hba1cDTforMerge$hba1cIQRinRange,hba1cDTforMerge$medianHbA1cInRange,hba1cDTforMerge$nValsPerIDinRange, hba1cDTforMerge$CV_HbA1cInRange, hba1cDTforMerge$npCV_HbA1cInRange, hba1cDTforMerge$qcD_HbA1cInRange)
-colnames(hba1cMergeSubset)<-c("LinkId", "hba1cIQRinRange", "medianHbA1cInRange", "nValsPerIDinRange", "CV_HbA1cInRange", "npCV_HbA1cInRange", "qcD_HbA1cInRange")
+hba1cMergeSubset<-data.table(hba1cDTforMerge$LinkId,hba1cDTforMerge$hba1cIQRinRange,hba1cDTforMerge$medianHbA1cInRange,hba1cDTforMerge$nValsPerIDinRange, hba1cDTforMerge$CV_HbA1cInRange, hba1cDTforMerge$npCV_HbA1cInRange, hba1cDTforMerge$qcD_HbA1cInRange, hba1cDTforMerge$meanHbA1cInRange)
+colnames(hba1cMergeSubset)<-c("LinkId", "hba1cIQRinRange", "medianHbA1cInRange", "nValsPerIDinRange", "CV_HbA1cInRange", "npCV_HbA1cInRange", "qcD_HbA1cInRange", "meanHbA1cInRange")
 
 
 ###############################################################################################
@@ -482,11 +524,18 @@ vif(fit1sw)
 sqrt(vif(fit1sw)) # none above 2
 
 ## coef of variability
-testData <- subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12))
+testData <- subset(T1_hbA1cAnalysisSet,diabetesDurationYears>((runInMonths/12)+1))
+
+quart <- ifelse(testData$CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[2], 1, 0)
+quart <- ifelse(testData$CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[2] | testData$CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3], 2, quart)
+quart <- ifelse(testData$CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3] | testData$CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[4], 3, quart)
+quart <- ifelse(testData$CV_HbA1cInRange > quantile(testData$CV_HbA1cInRange)[4], 4, quart)
+
+
 
 testMetric = testData$CV_HbA1cInRange
-testMetric = testData$npCV_HbA1cInRange
-testMetric = testData$qcD_HbA1cInRange
+# testMetric = testData$npCV_HbA1cInRange
+# testMetric = testData$qcD_HbA1cInRange
 
 simpleSurvivalPlotMultiTest_noMedian(testData,endDateUnix,sampleDateUnix,testMetric, 0.9)
 
@@ -560,7 +609,7 @@ all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$dateplustime1 == 0
 ## plot survival to admission. all patients
 simpleSurvivalPlotVariableOutcome(all_hbIQR_patients,max(admissionsDT$dateplustime1),sampleDateUnix,all_hbIQR_patients$dateplustime1,all_hbIQR_patients$hba1cIQRinRange,0)
 ## plot survival to admission. T1DM patients
-t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
+t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+1)]
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$hba1cIQRinRange,0)
 # cv
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$CV_HbA1cInRange,0)
@@ -568,7 +617,7 @@ simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampl
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$npCV_HbA1cInRange,0)
 
 ## plot survival to admission. T2DM patients
-t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
+t2_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 2 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12))]
 simpleSurvivalPlotVariableOutcome(t2_plotset,max(admissionsDT$dateplustime1),sampleDateUnix,t2_plotset$dateplustime1,t2_plotset$hba1cIQRinRange,0)
 
 ######################################
@@ -581,10 +630,10 @@ all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$dateplustime1 == 0
 ## add mortality as competing endpoint:
 all_hbIQR_patients$dateplustime1 <- ifelse(all_hbIQR_patients$DeathDateUnix > 0 & all_hbIQR_patients$DeathDateUnix < all_hbIQR_patients$dateplustime1, all_hbIQR_patients$DeathDateUnix, all_hbIQR_patients$dateplustime1)
 ## plot survival to admission. T1DM patients
-t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12)+12)]
+t1_plotset <- all_hbIQR_patients[DiabetesMellitusType_Mapped.x == "Type 1 Diabetes Mellitus" & diabetesDurationYears>((runInMonths/12))]
 simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$hba1cIQRinRange,0)
   # cv
-  simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$CV_HbA1cInRange,0)
+  simpleSurvivalPlotVariableOutcome_noMedian(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$CV_HbA1cInRange,0.6)
   # np cv
   simpleSurvivalPlotVariableOutcome(t1_plotset,max(t1_plotset$dateplustime1),sampleDateUnix,t1_plotset$dateplustime1,t1_plotset$npCV_HbA1cInRange,0)
 
@@ -741,6 +790,59 @@ quantile(matchedFrame[low_IQR == 0]$nValsPerIDinRange)
 quantile(matchedFrame[low_IQR == 1]$nValsPerIDinRange)
 
 simpleSurvivalPlot_noMedianCoV(matchedFrame,endDateUnix,sampleDateUnix,0.9)
+
+# for table 1
+dim(testData)
+
+#n 
+dim(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]])
+dim(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]])
+
+# age
+mean(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime)
+sd(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime)
+
+mean(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime)
+sd(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime)
+
+wilcox.test(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime, testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$age_atSampleTime, pair = F)
+
+# n vals
+quantile(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$nValsPerIDinRange)
+quantile(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$nValsPerIDinRange)
+
+quantile(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$medianHbA1cInRange)
+quantile(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$medianHbA1cInRange)
+
+wilcox.test(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$nValsPerIDinRange, testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$nValsPerIDinRange, pair = F)
+
+# mean hba1c
+mean(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange)
+sd(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange)
+
+mean(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange)
+sd(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange)
+
+wilcox.test(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange, testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$meanHbA1cInRange, pair = F)
+
+
+# diabetes duration
+quantile(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$diabetesDurationYears)
+quantile(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$diabetesDurationYears)
+
+wilcox.test(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$diabetesDurationYears, testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$diabetesDurationYears, pair = F)
+
+
+# is dead
+sum(testData[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$isDead)
+sum(testData[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$isDead)
+
+# 
+t1_plotset$admissionNumberFlag[is.na(t1_plotset$admissionNumberFlag)] <- 0
+t1_plotset$deadOrAdmitted <- ifelse(t1_plotset$admissionNumberFlag > 0 | t1_plotset$isDead == 1, 1, 0)
+
+sum(t1_plotset[CV_HbA1cInRange < quantile(testData$CV_HbA1cInRange)[3]]$deadOrAdmitted)
+sum(t1_plotset[CV_HbA1cInRange >= quantile(testData$CV_HbA1cInRange)[3]]$deadOrAdmitted)
 
 
 
