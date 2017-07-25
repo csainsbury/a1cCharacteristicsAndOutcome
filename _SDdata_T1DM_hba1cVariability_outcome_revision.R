@@ -5,10 +5,8 @@ library(survival)
 
 set.seed(42)
 
-
 ## functions
-
-returnUnixDateTime<-function(date) {
+returnUnixDateTime <- function(date) {
   returnVal<-as.numeric(as.POSIXct(date, format="%Y-%m-%d", tz="GMT"))
   return(returnVal)
 }
@@ -88,7 +86,7 @@ simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
   
 }
 
-simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
+simpleSurvivalPlot_factor<-function(inputFrame,factor_cvF,endDateUnix,sampleDateUnix,ylimMin) {
   
   SurvivalData<-inputFrame
   
@@ -112,13 +110,13 @@ simpleSurvivalPlot<-function(inputFrame,endDateUnix,sampleDateUnix,ylimMin) {
   #  SurvivalData$sex<-factor(1*(SurvivalData$sexNumber <1),levels=0:1,labels=c("F","M"))
   
   
-  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ (hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ factor_cvF, data = SurvivalData)
   shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
   plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
   
   # mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   
-  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+diabetesDurationYears+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
+  mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+nValsPerIDinRange+nValsPerIDinRange_sbp+factor_cvF, data = SurvivalData)
   pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
   legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
   summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
@@ -282,7 +280,6 @@ simpleSurvivalPlotVariableOutcome<-function(inputFrame,endDateUnix,sampleDateUni
   
 }
 
-
 simpleSurvivalPlotVariableOutcome_noMedian<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
   
   SurvivalData<-data.frame(inputFrame,testMetric,outcomeData)
@@ -322,7 +319,6 @@ simpleSurvivalPlotVariableOutcome_noMedian<-function(inputFrame,endDateUnix,samp
   print(mfitAge50.coxph)
   
 }
-
 
 simpleSurvivalPlotVariableOutcome_noDD<-function(inputFrame,endDateUnix,sampleDateUnix,outcomeData,testMetric,ylimMin) {
   
@@ -421,7 +417,6 @@ DBPsetDT<-data.table(DBPsetDF)
 
 ########################################################################################
 ## set up values to pass to RF for each paramter
-
 coreDataPrepDT<-data.table(diagnosisSetDT$birthDateUnix,diagnosisSetDT$LinkId,diagnosisSetDT$DeprivationQuintile,diagnosisSetDT$DiabetesMellitusType_Mapped,diagnosisSetDT$ageAtExtractOrDeath,diagnosisSetDT$diabetesDurationYears,diagnosisSetDT$isDead,diagnosisSetDT$diagnosisDateUnix,diagnosisSetDT$DeathDateUnix)
 colnames(coreDataPrepDT)<-c("birthDateUnix","LinkId","DeprivationQuintile","DiabetesMellitusType_Mapped","ageAtExtractOrDeath","diabetesDurationYears","isDead","diagnosisDateUnix","DeathDateUnix")
 coreDataPrepDT$diabetesDurationYears<-(sampleDateUnix-coreDataPrepDT$diagnosisDateUnix)/(60*60*24*365.25)
@@ -548,6 +543,8 @@ testData$logit_isDead <- ifelse((testData$DeathDateUnix - sampleDateUnix) < logi
     fit <- glm(formula = logit_isDead ~ (age_atSampleTime + nValsPerIDinRange + qcD_HbA1cInRange), family = binomial(link = "logit"), data = testData)
     
 testData <- subset(T2_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12))
+testData <- subset(T1_hbA1cAnalysisSet,diabetesDurationYears>(runInMonths/12))
+
 
 testMetric = testData$CV_HbA1cInRange
 # testMetric = testData$npCV_HbA1cInRange
@@ -720,6 +717,8 @@ simpleSurvivalPlotMultiTest(T2_hbA1c_bp_AnalysisSet,endDateUnix,sampleDateUnix,T
 # by bp / hba1v cv either, or both
 
 factorSet <-T1_hbA1c_bp_AnalysisSet
+# factorSet <-T2_hbA1c_bp_AnalysisSet
+
 factorSet$CV_HbA1cInRange[is.na(factorSet$CV_HbA1cInRange)] <- (-5)
 factorSet <- factorSet[CV_HbA1cInRange >= 0]
 
@@ -733,6 +732,11 @@ factor_cv <- ifelse(factorSet$CV_SBPInRange > cv_sbp_thresh, 2, factor_cv)
 factor_cv <- ifelse((factorSet$CV_HbA1cInRange > cv_hb1ac_thresh) & (factorSet$CV_SBPInRange > cv_sbp_thresh), 3, factor_cv)
 
 factor_cvF <- factor(factor_cv)
+
+simpleSurvivalPlot_factor(factorSet, factor_cvF, endDateUnix, sampleDateUnix, 0.9)
+
+
+
 
 
 
