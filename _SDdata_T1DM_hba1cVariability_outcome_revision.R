@@ -733,11 +733,12 @@ factor_cv <- ifelse((factorSet$CV_HbA1cInRange > cv_hb1ac_thresh) & (factorSet$C
 
 factor_cvF <- factor(factor_cv)
 
+factorSet$factor_cvF <- factor_cvF
+
 simpleSurvivalPlot_factor(factorSet, factor_cvF, endDateUnix, sampleDateUnix, 0.9)
 
-
-
-
+# removing IDs with duration of diabetes < runin duration
+simpleSurvivalPlot_factor(factorSet[diabetesDurationYears > (runInMonths/12)], factorSet[diabetesDurationYears > (runInMonths/12)]$factor_cvF, endDateUnix, sampleDateUnix, 0.85)
 
 
 
