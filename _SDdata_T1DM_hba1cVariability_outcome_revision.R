@@ -740,6 +740,15 @@ simpleSurvivalPlot_factor(factorSet, factor_cvF, endDateUnix, sampleDateUnix, 0.
 # removing IDs with duration of diabetes < runin duration
 simpleSurvivalPlot_factor(factorSet[diabetesDurationYears > (runInMonths/12)], factorSet[diabetesDurationYears > (runInMonths/12)]$factor_cvF, endDateUnix, sampleDateUnix, 0.85)
 
+#####################
+# logit for death - test
+
+fit <- glm(formula = isDead ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange + sbpIQRinRange + medianSBPInRange + nValsPerIDinRange_sbp), family = binomial(link = "logit"), data = factorSet[diabetesDurationYears > (runInMonths/12)])
+
+fit <- glm(formula = isDead ~ (age_atSampleTime + CV_HbA1cInRange), family = binomial(link = "logit"), data = factorSet[diabetesDurationYears > (runInMonths/12)])
+
+fit <- glm(formula = isDead ~ (age_atSampleTime + diabetesDurationYears + medianHbA1cInRange + nValsPerIDinRange + hba1cIQRinRange), family = binomial(link = "logit"), data = factorSet[diabetesDurationYears > (runInMonths/12)])
+
 
 
 
