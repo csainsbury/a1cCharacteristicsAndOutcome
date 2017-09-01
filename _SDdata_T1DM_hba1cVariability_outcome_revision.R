@@ -112,7 +112,7 @@ simpleSurvivalPlot_factor<-function(inputFrame,factor_cvF,endDateUnix,sampleDate
   
   mfitAge50<-survfit(Surv(timeToDeathInterval, shortDeathEvent) ~ factor_cvF, data = SurvivalData)
   shortPlotTitle <- paste("Mortality, time ",round(shortCensorPeriodStartDay)/DaySeconds," to ",round(max(SurvivalData$timeToDeathInterval))/DaySeconds," days\n n= ",nrow(SurvivalData),", threshold: ",quantile(SurvivalData$hba1cIQRinRange)[3],sep="")
-  plot(mfitAge50,mark.time=T,lty=1:6,conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
+  plot(mfitAge50,mark.time=T,lty = 1:6, conf.int=F,col=c("black","red","blue","green","orange","purple"),main=shortPlotTitle,xlim=c(shortCensorPeriodStartDay,round(max(SurvivalData$timeToDeathInterval))),lwd=5,ylim=c(ylimMin,1))
   
   # mfitAge50.coxph<-coxph(Surv(timeToDeathInterval, shortDeathEvent) ~ age_atSampleTime+medianHbA1cInRange+nValsPerIDinRange+(hba1cIQRinRange>=quantile(SurvivalData$hba1cIQRinRange)[3]), data = SurvivalData)
   
@@ -120,7 +120,7 @@ simpleSurvivalPlot_factor<-function(inputFrame,factor_cvF,endDateUnix,sampleDate
   pVal <- summary(mfitAge50.coxph)$coef[,5]; HR <- round(exp(coef(mfitAge50.coxph)),2)
   legendText <- paste("p = ",pVal," | HR = ",HR,sep="")
   summarySurvfit <- summary(mfitAge50); legendNames <- row.names(summarySurvfit$table)
-  legend("bottomleft",c(legendNames),lty=1:6,col=c("black","red","blue","green","orange","purple"),cex=0.8); legend("topright",legendText,cex=0.6)
+  legend("bottomleft",c(legendNames),lty=1:6, lwd = 3,col=c("black","red","blue","green","orange","purple"),cex=1.2) # ; legend("topright",legendText,cex=0.6)
   
   print(mfitAge50.coxph)
   
@@ -727,8 +727,8 @@ cv_sbp_thresh <- quantile(factorSet$CV_SBPInRange)[3]
 
 
 # 0 lower bp and hb, 1 hba1c upper cv, 2 sbp upper cv, 3 both
-factor_cv <- ifelse(factorSet$CV_HbA1cInRange > cv_hb1ac_thresh, 1, 0)
-factor_cv <- ifelse(factorSet$CV_SBPInRange > cv_sbp_thresh, 2, factor_cv)
+factor_cv <- ifelse(factorSet$CV_HbA1cInRange > cv_hb1ac_thresh & factorSet$CV_SBPInRange < cv_sbp_thresh, 1, 0)
+factor_cv <- ifelse(factorSet$CV_SBPInRange > cv_sbp_thresh & factorSet$CV_HbA1cInRange < cv_hb1ac_thresh, 2, factor_cv)
 factor_cv <- ifelse((factorSet$CV_HbA1cInRange > cv_hb1ac_thresh) & (factorSet$CV_SBPInRange > cv_sbp_thresh), 3, factor_cv)
 
 factor_cvF <- factor(factor_cv)
@@ -739,6 +739,54 @@ simpleSurvivalPlot_factor(factorSet, factor_cvF, endDateUnix, sampleDateUnix, 0.
 
 # removing IDs with duration of diabetes < runin duration
 simpleSurvivalPlot_factor(factorSet[diabetesDurationYears > (runInMonths/12)], factorSet[diabetesDurationYears > (runInMonths/12)]$factor_cvF, endDateUnix, sampleDateUnix, 0.85)
+
+# produce summary stats for table
+# all
+summary(factorSet[diabetesDurationYears > (runInMonths/12)])
+
+# low hb sbp
+summary(factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 0])
+
+# high hb low sbp
+summary(factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 1])
+
+# low hb high sbp
+summary(factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 2])
+
+# high hb high sbp
+summary(factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 3])
+
+## tests for table 1
+reference <- factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 0]
+fac1 <- factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 1]
+fac2 <- factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 2]
+fac3 <- factorSet[diabetesDurationYears > (runInMonths/12) & factor_cvF == 3]
+
+# age
+wilcox.test(reference$age_atSampleTime, fac1$age_atSampleTime)
+wilcox.test(reference$age_atSampleTime, fac2$age_atSampleTime)
+wilcox.test(reference$age_atSampleTime, fac3$age_atSampleTime)
+
+# DM duration
+wilcox.test(reference$diabetesDurationYears, fac1$diabetesDurationYears)
+wilcox.test(reference$diabetesDurationYears, fac2$diabetesDurationYears)
+wilcox.test(reference$diabetesDurationYears, fac3$diabetesDurationYears)
+
+# n tests hb
+wilcox.test(reference$nValsPerIDinRange, fac1$nValsPerIDinRange)
+wilcox.test(reference$nValsPerIDinRange, fac2$nValsPerIDinRange)
+wilcox.test(reference$nValsPerIDinRange, fac3$nValsPerIDinRange)
+
+# n tests sbp
+wilcox.test(reference$nValsPerIDinRange_sbp, fac1$nValsPerIDinRange_sbp)
+wilcox.test(reference$nValsPerIDinRange_sbp, fac2$nValsPerIDinRange_sbp)
+wilcox.test(reference$nValsPerIDinRange_sbp, fac3$nValsPerIDinRange_sbp)
+
+
+
+
+
+
 
 #####################
 # logit for death - test
